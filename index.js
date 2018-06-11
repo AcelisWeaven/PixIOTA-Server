@@ -4,6 +4,8 @@ const WebSocket = require('ws');
 const zmq = require('zeromq');
 const wss = new WebSocket.Server({port: 8081});
 const subscriber = zmq.socket('sub');
+const redis = require("redis");
+const redisClient = redis.createClient();
 const url = 'mongodb://localhost:27017';
 const dbName = 'pixiota';
 const boardSize = 256;
@@ -13,6 +15,10 @@ let db = null;
 let iota = new IOTA({
     'host': 'http://static.88-198-93-219.clients.your-server.de',
     'port': 14267
+});
+
+redisClient.on("error", function (err) {
+    console.log("REDIS Error " + err);
 });
 
 // broadcast to all websocket clients
@@ -52,19 +58,20 @@ function pixiotaDispatchPixel(message, value, id, to, milestone) {
         y: pixelData.y,
         color: pixelData.c,
     });
+    redisClient.bitfield(["map", "SET", "u4", (pixelData.y * boardSize + pixelData.x) * 4, pixelData.c]);
     wss.broadcast(JSON.stringify(pixelData))
 }
 
 wss.on('connection', ws => {
-    // send last 50 transactions
-    db.collection('transactions').find({}).limit(100).sort({milestone: -1}).toArray()
+    // send last 10 transactions
+    db.collection('transactions').find({}).limit(10).sort({milestone: -1}).toArray()
         .catch(err => {
             console.log(err);
             console.log("ERROR");
         })
         .then(results => {
             ws.send(JSON.stringify({
-                type: "transactions",
+                 type: "latest_transactions",
                 transactions: results.map((result) => {
                     return {
                         a: result.value,
@@ -87,13 +94,16 @@ MongoClient.connect(url)
 
         db.collection('transactions').remove({}, function (err, numberRemoved) {
             console.log(`DEBUG: Removed ${numberRemoved.result.n} transactions from database`);
-            setInterval(() => {
-                const pixelID = `pixiota ${Math.round(Math.random() * 16)}.${Math.round(Math.random() * 256).toString(36)}.${Math.round(Math.random() * 256).toString(36)}`;
-                pixiotaDispatchPixel(pixelID, "2",
-                    "DVNMLPXKBBOIFHLVUNCFOPIIT9GJKADRRJYSDGHDIHCBGDEWYIPPUVQBDQRREGGYSPZ9VXPRXIXIA9999",
-                    "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
-                    Math.floor(Math.random() * 100000));
-            }, 1);
+            redisClient.set(["map", ""], (err, reply) => {
+                console.log("DEBUG: Reset redis map --> OK");
+                setInterval(() => {
+                    const pixelID = `pixiota ${Math.round(Math.random() * 16)}.${Math.round(Math.random() * 256).toString(36)}.${Math.round(Math.random() * 256).toString(36)}`;
+                    pixiotaDispatchPixel(pixelID, "2",
+                        "DVNMLPXKBBOIFHLVUNCFOPIIT9GJKADRRJYSDGHDIHCBGDEWYIPPUVQBDQRREGGYSPZ9VXPRXIXIA9999",
+                        "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+                        Math.floor(Math.random() * 100000));
+                }, 33);
+            });
         });
     })
 ;
