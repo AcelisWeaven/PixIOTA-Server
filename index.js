@@ -2,6 +2,10 @@ const MongoClient = require('mongodb').MongoClient;
 const IOTA = require('iota.lib.js');
 const WebSocket = require('ws');
 const zmq = require('zeromq');
+const express = require('express');
+const expressApp = express();
+const expressCors = require('cors');
+const expressCompression = require('compression');
 const wss = new WebSocket.Server({port: 8081});
 const subscriber = zmq.socket('sub');
 const redis = require("redis");
@@ -71,7 +75,7 @@ wss.on('connection', ws => {
         })
         .then(results => {
             ws.send(JSON.stringify({
-                 type: "latest_transactions",
+                type: "latest_transactions",
                 transactions: results.map((result) => {
                     return {
                         a: result.value,
@@ -102,11 +106,24 @@ MongoClient.connect(url)
                         "DVNMLPXKBBOIFHLVUNCFOPIIT9GJKADRRJYSDGHDIHCBGDEWYIPPUVQBDQRREGGYSPZ9VXPRXIXIA9999",
                         "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
                         Math.floor(Math.random() * 100000));
-                }, 33);
+                }, 200);
             });
         });
     })
 ;
+
+expressApp.use(expressCompression());
+expressApp.use(expressCors());
+expressApp.get('/map', function (req, res) {
+    redisClient.get("map", (err, map) => {
+        // FIXME: Doesn't seems compressed
+        res.send(new Buffer(map, 'binary'));
+    });
+});
+
+expressApp.listen(3000, function () {
+    console.log('Express started on port 3000')
+});
 return;
 
 // Use connect method to connect to the server
