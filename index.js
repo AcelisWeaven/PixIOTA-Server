@@ -63,6 +63,10 @@ function pixiotaDispatchPixel(message, value, id, to, milestone) {
         color: pixelData.c,
     });
     redisClient.bitfield(["map", "SET", "u4", (pixelData.y * boardSize + pixelData.x) * 4, pixelData.c]);
+    redisClient.bitfield(["map", "GET", "u4", (pixelData.y * boardSize + pixelData.x) * 4], (a, b) => {
+        console.log("a", a);
+        console.log("b", b);
+    });
     wss.broadcast(JSON.stringify(pixelData))
 }
 
@@ -100,24 +104,36 @@ MongoClient.connect(url)
             console.log(`DEBUG: Removed ${numberRemoved.result.n} transactions from database`);
             redisClient.set(["map", ""], (err, reply) => {
                 console.log("DEBUG: Reset redis map --> OK");
-                setInterval(() => {
-                    const pixelID = `pixiota ${Math.round(Math.random() * 16)}.${Math.round(Math.random() * 256).toString(36)}.${Math.round(Math.random() * 256).toString(36)}`;
-                    pixiotaDispatchPixel(pixelID, "2",
+                // const total = 1000;
+                // for (let j = 0; j < total ; j++) {
+                //     if (j % Math.round(total / 10) === 0)
+                //         console.log(`${j / total * 100}%...`);
+                //     const pixelID = `pixiota ${Math.round(Math.random() * 16)}.${Math.round(Math.random() * 50).toString(36)}.${Math.round(Math.random() * 50).toString(36)}`;
+                //     pixiotaDispatchPixel(pixelID, "2",
+                //         "DVNMLPXKBBOIFHLVUNCFOPIIT9GJKADRRJYSDGHDIHCBGDEWYIPPUVQBDQRREGGYSPZ9VXPRXIXIA9999",
+                //         "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+                //         Math.floor(Math.random() * 100000));
+                // }
+                // console.log("Finished!")
+
+                for (let i = 0; i < 256; i++) {
+                    pixiotaDispatchPixel(`pixiota ${i % 16}.${i.toString(36)}.${i.toString(36)}`, "2",
                         "DVNMLPXKBBOIFHLVUNCFOPIIT9GJKADRRJYSDGHDIHCBGDEWYIPPUVQBDQRREGGYSPZ9VXPRXIXIA9999",
                         "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
                         Math.floor(Math.random() * 100000));
-                }, 200);
+                }
             });
         });
     })
 ;
 
-expressApp.use(expressCompression());
+// forces compression for every Express route (including binary map)
+expressApp.use(expressCompression({filter: (req, res) => true}));
+// FIXME: Disallow other domains
 expressApp.use(expressCors());
 expressApp.get('/map', function (req, res) {
     redisClient.get("map", (err, map) => {
-        // FIXME: Doesn't seems compressed
-        res.send(new Buffer(map, 'binary'));
+        res.end(map, 'binary');
     });
 });
 
