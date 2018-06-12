@@ -1,11 +1,10 @@
+const env = process.env.NODE_ENV || 'dev';
 const MongoClient = require('mongodb').MongoClient;
 const IOTA = require('iota.lib.js');
 const WebSocket = require('ws');
 const zmq = require('zeromq');
 const express = require('express');
 const expressApp = express();
-const expressCors = require('cors');
-const expressCacheResponseDirective = require('express-cache-response-directive');
 const expressCompression = require('compression');
 const wss = new WebSocket.Server({port: 8081});
 const subscriber = zmq.socket('sub');
@@ -52,7 +51,11 @@ function pixiotaDispatchPixel(message, value, id, to, milestone) {
             t: to,
         }
     })(message.split(' '));
-    if (!pixelData || pixelData.x >= boardSize || pixelData.y >= boardSize) return;
+    if (!pixelData ||
+        pixelData.x < 0 || pixelData.x >= boardSize ||
+        pixelData.y < 0 || pixelData.y >= boardSize ||
+        pixelData.c < 0 || pixelData.c >= 16)
+        return;
 
     db.collection('transactions').insertOne({
         milestone: milestone,
@@ -101,17 +104,6 @@ MongoClient.connect(url)
             console.log(`DEBUG: Removed ${numberRemoved.result.n} transactions from database`);
             redisClient.set(["map", ""], (err, reply) => {
                 console.log("DEBUG: Reset redis map --> OK");
-                // const total = 1000;
-                // for (let j = 0; j < total ; j++) {
-                //     if (j % Math.round(total / 10) === 0)
-                //         console.log(`${j / total * 100}%...`);
-                //     const pixelID = `pixiota ${Math.round(Math.random() * 16)}.${Math.round(Math.random() * 50).toString(36)}.${Math.round(Math.random() * 50).toString(36)}`;
-                //     pixiotaDispatchPixel(pixelID, "2",
-                //         "DVNMLPXKBBOIFHLVUNCFOPIIT9GJKADRRJYSDGHDIHCBGDEWYIPPUVQBDQRREGGYSPZ9VXPRXIXIA9999",
-                //         "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
-                //         Math.floor(Math.random() * 100000));
-                // }
-                // console.log("Finished!")
 
                 for (let i = 0; i < boardSize * 30; i++) {
                     pixiotaDispatchPixel(`pixiota ${Math.floor(Math.random() * 16)}.${Math.floor(i / boardSize).toString(36)}.${(i % boardSize).toString(36)}`, "2",
@@ -120,7 +112,7 @@ MongoClient.connect(url)
                         Math.floor(Math.random() * 100000));
                 }
                 setInterval(() => {
-                    pixiotaDispatchPixel(`pixiota ${Math.round(Math.random() * 16)}.${Math.round(Math.random() * boardSize).toString(36)}.${Math.round(Math.random() * boardSize).toString(36)}`, "2",
+                    pixiotaDispatchPixel(`pixiota ${Math.floor(Math.random() * 16)}.${Math.floor(Math.random() * boardSize).toString(36)}.${Math.floor(Math.random() * boardSize).toString(36)}`, "2",
                         "DVNMLPXKBBOIFHLVUNCFOPIIT9GJKADRRJYSDGHDIHCBGDEWYIPPUVQBDQRREGGYSPZ9VXPRXIXIA9999",
                         "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
                         Math.floor(Math.random() * 100000));
@@ -133,11 +125,10 @@ MongoClient.connect(url)
 
 // forces compression for every Express route (including binary map)
 expressApp.use(expressCompression({filter: (req, res) => true}));
-// FIXME: Disallow other domains
-expressApp.use(expressCors());
-expressApp.use(expressCacheResponseDirective());
 expressApp.get('/map', function (req, res) {
     redisClient.get(new Buffer("map"), (err, map) => {
+        if (env === "dev")
+            res.setHeader('Access-Control-Allow-Origin', '*');
         res.cacheControl({maxAge: 1, staleWhileRevalidate: 1}); // 1-second cache only
         res.end(map, 'binary');
     });
