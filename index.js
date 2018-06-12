@@ -6,6 +6,7 @@ const zmq = require('zeromq');
 const express = require('express');
 const expressApp = express();
 const expressCompression = require('compression');
+const expressCacheResponseDirective = require('express-cache-response-directive');
 const wss = new WebSocket.Server({port: 8081});
 const subscriber = zmq.socket('sub');
 const redis = require("redis");
@@ -123,8 +124,9 @@ MongoClient.connect(url)
     })
 ;
 
-// forces compression for every Express route (including binary map)
+// forces compression for every Express route (including binary map) (FIXME: Only for binary map?)
 expressApp.use(expressCompression({filter: (req, res) => true}));
+expressApp.use(expressCacheResponseDirective());
 expressApp.get('/map', function (req, res) {
     redisClient.get(new Buffer("map"), (err, map) => {
         if (env === "dev")
