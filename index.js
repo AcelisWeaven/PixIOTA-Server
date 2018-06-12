@@ -1,25 +1,32 @@
-const env = process.env.NODE_ENV || 'dev';
+require('dotenv').config();
+const env = process.env.NODE_ENV;
+const pixiotaApiPort = process.env.PIXIOTA_API_PORT;
+const iotaProvider = process.env.PIXIOTA_PROVIDER;
+const mongoDbUrl = process.env.MONGODB_URL;
+const mongoDbName = process.env.MONGODB_NAME;
+const zmqUrl = process.env.ZMQ_URL;
+
 const MongoClient = require('mongodb').MongoClient;
-const IOTA = require('iota.lib.js');
 const WebSocket = require('ws');
+const IOTA = require('iota.lib.js');
 const zmq = require('zeromq');
 const express = require('express');
 const expressApp = express();
 const expressCompression = require('compression');
 const expressCacheResponseDirective = require('express-cache-response-directive');
-const wss = new WebSocket.Server({port: 8081});
-const subscriber = zmq.socket('sub');
+const zmqSubscriber = zmq.socket('sub');
 const redis = require("redis");
 const redisClient = redis.createClient({detect_buffers: true});
-const url = 'mongodb://localhost:27017';
-const dbName = 'pixiota';
 const boardSize = 256;
+const expressServer = expressApp.listen(pixiotaApiPort, () => {
+    console.log(`Express started on port ${pixiotaApiPort}`)
+});
+const wss = new WebSocket.Server({server: expressServer});
 
 let client = null;
 let db = null;
 let iota = new IOTA({
-    'host': 'http://static.88-198-93-219.clients.your-server.de',
-    'port': 14267
+    provider: iotaProvider,
 });
 
 redisClient.on("error", function (err) {
@@ -96,10 +103,10 @@ wss.on('connection', ws => {
 });
 
 // debug
-MongoClient.connect(url)
+MongoClient.connect(mongoDbUrl)
     .then(_client => {
         client = _client;
-        db = client.db(dbName);
+        db = client.db(mongoDbName);
 
         db.collection('transactions').remove({}, function (err, numberRemoved) {
             console.log(`DEBUG: Removed ${numberRemoved.result.n} transactions from database`);
@@ -136,13 +143,10 @@ expressApp.get('/map', function (req, res) {
     });
 });
 
-expressApp.listen(3000, function () {
-    console.log('Express started on port 3000')
-});
 return;
 
 // Use connect method to connect to the server
-MongoClient.connect(url)
+MongoClient.connect(mongoDbUrl)
     .catch(err => {
         console.log("An error occured! Exiting");
         console.log(err);
@@ -151,7 +155,7 @@ MongoClient.connect(url)
     .then(_client => {
         console.log("Connected successfully to server");
         client = _client;
-        db = client.db(dbName);
+        db = client.db(mongoDbName);
 
         // Empty db
         // db.collection('transactions').remove({},function(err,numberRemoved){
@@ -167,7 +171,7 @@ MongoClient.connect(url)
     })
 ;
 
-subscriber.on('message', function (msg) {
+zmqSubscriber.on('message', function (msg) {
     let [milestone, id, to] = msg.toString().split(' ').slice(1);
 
     if (to !== "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
@@ -199,12 +203,12 @@ subscriber.on('message', function (msg) {
             pixiotaDispatchPixel(message, value, id, to, milestone);
         });
 });
-subscriber.on('close', function () {
+zmqSubscriber.on('close', function () {
     console.log("ZMQ connection lost :(")
 });
 
 function startZMQsubscriber() {
-    subscriber
-        .connect('tcp://static.88-198-93-219.clients.your-server.de:5557')
+    zmqSubscriber
+        .connect(zmqUrl)
         .subscribe('sn ');
 }
