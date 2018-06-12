@@ -5,6 +5,7 @@ const zmq = require('zeromq');
 const express = require('express');
 const expressApp = express();
 const expressCors = require('cors');
+const expressCacheResponseDirective = require('express-cache-response-directive');
 const expressCompression = require('compression');
 const wss = new WebSocket.Server({port: 8081});
 const subscriber = zmq.socket('sub');
@@ -134,8 +135,10 @@ MongoClient.connect(url)
 expressApp.use(expressCompression({filter: (req, res) => true}));
 // FIXME: Disallow other domains
 expressApp.use(expressCors());
+expressApp.use(expressCacheResponseDirective());
 expressApp.get('/map', function (req, res) {
     redisClient.get(new Buffer("map"), (err, map) => {
+        res.cacheControl({maxAge: 1, staleWhileRevalidate: 1}); // 1-second cache only
         res.end(map, 'binary');
     });
 });
