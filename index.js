@@ -9,7 +9,7 @@ const expressCompression = require('compression');
 const wss = new WebSocket.Server({port: 8081});
 const subscriber = zmq.socket('sub');
 const redis = require("redis");
-const redisClient = redis.createClient();
+const redisClient = redis.createClient({detect_buffers: true});
 const url = 'mongodb://localhost:27017';
 const dbName = 'pixiota';
 const boardSize = 256;
@@ -62,11 +62,7 @@ function pixiotaDispatchPixel(message, value, id, to, milestone) {
         y: pixelData.y,
         color: pixelData.c,
     });
-    redisClient.bitfield(["map", "SET", "u4", (pixelData.y * boardSize + pixelData.x) * 4, pixelData.c]);
-    redisClient.bitfield(["map", "GET", "u4", (pixelData.y * boardSize + pixelData.x) * 4], (a, b) => {
-        console.log("a", a);
-        console.log("b", b);
-    });
+    redisClient.bitfield(["map", "SET", "u4", `#${pixelData.y * boardSize + pixelData.x}`, pixelData.c]);
     wss.broadcast(JSON.stringify(pixelData))
 }
 
@@ -116,12 +112,19 @@ MongoClient.connect(url)
                 // }
                 // console.log("Finished!")
 
-                for (let i = 0; i < 256; i++) {
-                    pixiotaDispatchPixel(`pixiota ${i % 16}.${i.toString(36)}.${i.toString(36)}`, "2",
+                for (let i = 0; i < boardSize * 30; i++) {
+                    pixiotaDispatchPixel(`pixiota ${Math.floor(Math.random() * 16)}.${Math.floor(i / boardSize).toString(36)}.${(i % boardSize).toString(36)}`, "2",
                         "DVNMLPXKBBOIFHLVUNCFOPIIT9GJKADRRJYSDGHDIHCBGDEWYIPPUVQBDQRREGGYSPZ9VXPRXIXIA9999",
                         "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
                         Math.floor(Math.random() * 100000));
                 }
+                setInterval(() => {
+                    pixiotaDispatchPixel(`pixiota ${Math.round(Math.random() * 16)}.${Math.round(Math.random() * boardSize).toString(36)}.${Math.round(Math.random() * boardSize).toString(36)}`, "2",
+                        "DVNMLPXKBBOIFHLVUNCFOPIIT9GJKADRRJYSDGHDIHCBGDEWYIPPUVQBDQRREGGYSPZ9VXPRXIXIA9999",
+                        "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+                        Math.floor(Math.random() * 100000));
+                }, 200);
+                console.log("Loaded sample pixels");
             });
         });
     })
@@ -132,7 +135,7 @@ expressApp.use(expressCompression({filter: (req, res) => true}));
 // FIXME: Disallow other domains
 expressApp.use(expressCors());
 expressApp.get('/map', function (req, res) {
-    redisClient.get("map", (err, map) => {
+    redisClient.get(new Buffer("map"), (err, map) => {
         res.end(map, 'binary');
     });
 });
