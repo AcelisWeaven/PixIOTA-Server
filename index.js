@@ -131,19 +131,19 @@ MongoClient.connect(mongoDbUrl)
             redisClient.set(["map", ""], (err, reply) => {
                 console.log("DEBUG: Reset redis map --> OK");
 
-                for (let i = 0; i < boardSize * 20; i++) {
-                    pixiotaDispatchPixel(`pixiota ${Math.floor(Math.random() * 16)}.${Math.floor(i / boardSize).toString(36)}.${(i % boardSize).toString(36)}`, "2",
-                        "DVNMLPXKBBOIFHLVUNCFOPIIT9GJKADRRJYSDGHDIHCBGDEWYIPPUVQBDQRREGGYSPZ9VXPRXIXIA9999",
-                        "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
-                        Math.floor(Math.random() * 100000));
-                }
-                setInterval(() => {
-                    pixiotaDispatchPixel(`pixiota ${Math.floor(Math.random() * 16)}.${Math.floor(Math.random() * boardSize).toString(36)}.${Math.floor(Math.random() * boardSize).toString(36)}`, "2",
-                        "DVNMLPXKBBOIFHLVUNCFOPIIT9GJKADRRJYSDGHDIHCBGDEWYIPPUVQBDQRREGGYSPZ9VXPRXIXIA9999",
-                        "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
-                        Math.floor(Math.random() * 100000));
-                }, 1000);
-                console.log("Loaded sample pixels");
+                // for (let i = 0; i < boardSize * 20; i++) {
+                //     pixiotaDispatchPixel(`pixiota ${Math.floor(Math.random() * 16)}.${Math.floor(i / boardSize).toString(36)}.${(i % boardSize).toString(36)}`, "2",
+                //         "DVNMLPXKBBOIFHLVUNCFOPIIT9GJKADRRJYSDGHDIHCBGDEWYIPPUVQBDQRREGGYSPZ9VXPRXIXIA9999",
+                //         "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+                //         Math.floor(Math.random() * 100000));
+                // }
+                // setInterval(() => {
+                //     pixiotaDispatchPixel(`pixiota ${Math.floor(Math.random() * 16)}.${Math.floor(Math.random() * boardSize).toString(36)}.${Math.floor(Math.random() * boardSize).toString(36)}`, "2",
+                //         "DVNMLPXKBBOIFHLVUNCFOPIIT9GJKADRRJYSDGHDIHCBGDEWYIPPUVQBDQRREGGYSPZ9VXPRXIXIA9999",
+                //         "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
+                //         Math.floor(Math.random() * 100000));
+                // }, 1000);
+                // console.log("Loaded sample pixels");
             });
         });
     })
@@ -152,7 +152,7 @@ MongoClient.connect(mongoDbUrl)
 // forces compression for every Express route (including binary map) (FIXME: Only for binary map?)
 expressApp.use(expressCompression({filter: (req, res) => true}));
 expressApp.use(expressCacheResponseDirective());
-expressApp.get('/map', function (req, res) {
+expressApp.get('/map', (req, res) => {
     redisClient.get(new Buffer("map"), (err, map) => {
         if (env === "dev")
             res.setHeader('Access-Control-Allow-Origin', '*');
@@ -160,32 +160,23 @@ expressApp.get('/map', function (req, res) {
         res.end(map, 'binary');
     });
 });
-
-return;
+expressApp.get('/', (req, res) => {
+    res.cacheControl({maxAge: 3600, staleWhileRevalidate: 3600});
+    res.send("Hmm... May I help you?")
+});
 
 // Use connect method to connect to the server
 MongoClient.connect(mongoDbUrl)
     .catch(err => {
-        console.log("An error occured! Exiting");
+        console.log("An error occured while connecting to MongoDB! Exiting");
         console.log(err);
         process.exit(1);
     })
     .then(_client => {
-        console.log("Connected successfully to server");
         client = _client;
         db = client.db(mongoDbName);
 
-        // Empty db
-        // db.collection('transactions').remove({},function(err,numberRemoved){
-        //     console.log("inside remove call back" + numberRemoved);
-        // });
-        startZMQsubscriber();
-        // return db.collection('transactions').insertOne({
-        //     milestone: 520700,
-        //     id: "HJAJOFIHZOZASKLUQVTWSTQMYYKKVRJAQDDBYFOAPVVLNPRZEBGGHE9VQWELDQVQBFNFQBRJYCDHA9999",
-        //     to: "AAJXXFJUEQHKPYIOUIUO9FWCMOAFBZAZPXIFRI9FLDQZJGHQENG9HNMODUZJCHR9RHHUSBHWJELGRDOWZ",
-        //     value: undefined
-        // });
+        zmqSubscriber.connect(zmqUrl).subscribe('sn ');
     })
 ;
 
@@ -224,9 +215,3 @@ zmqSubscriber.on('message', function (msg) {
 zmqSubscriber.on('close', function () {
     console.log("ZMQ connection lost :(")
 });
-
-function startZMQsubscriber() {
-    zmqSubscriber
-        .connect(zmqUrl)
-        .subscribe('sn ');
-}
