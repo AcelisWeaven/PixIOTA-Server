@@ -191,8 +191,9 @@ zmqSubscriber.on('message', function (msg) {
         (err, results) => {
             if (err)
                 console.log(err);
-            if (results.length <= 0) {
+            if (!results || results.length <= 0) {
                 console.error("Well... this shouldn't happen");
+                return;
             }
             let transaction = results[0];
             let message = iota.utils.fromTrytes(
