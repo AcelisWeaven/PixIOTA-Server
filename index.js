@@ -79,6 +79,8 @@ function pixiotaDispatchPixel(message, value, id, to, milestone) {
 }
 
 wss.on('connection', ws => {
+    if (!db) return;
+
     // send last 10 transactions
     db.collection('transactions').find({}).limit(10).sort({milestone: -1}).toArray()
         .catch(err => {
@@ -86,6 +88,7 @@ wss.on('connection', ws => {
             console.log("ERROR");
         })
         .then(results => {
+            if (ws.readyState !== WebSocket.OPEN) return;
             ws.send(JSON.stringify({
                 type: "latest_transactions",
                 transactions: results.map((result) => {
