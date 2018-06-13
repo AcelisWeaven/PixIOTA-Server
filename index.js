@@ -78,7 +78,22 @@ function pixiotaDispatchPixel(message, value, id, to, milestone) {
     wss.broadcast(JSON.stringify(pixelData))
 }
 
+// ws heartbeat
+setInterval(function ping() {
+    wss.clients.forEach(function each(ws) {
+        if (ws.isAlive === false) return ws.terminate();
+
+        ws.isAlive = false;
+        ws.ping();
+    });
+}, 30000);
+
 wss.on('connection', ws => {
+    ws.isAlive = true;
+    ws.on('pong', () => {
+        ws.isAlive = true;
+    });
+
     if (!db) return;
 
     // send last 10 transactions
@@ -116,7 +131,7 @@ MongoClient.connect(mongoDbUrl)
             redisClient.set(["map", ""], (err, reply) => {
                 console.log("DEBUG: Reset redis map --> OK");
 
-                for (let i = 0; i < boardSize * 30; i++) {
+                for (let i = 0; i < boardSize * 20; i++) {
                     pixiotaDispatchPixel(`pixiota ${Math.floor(Math.random() * 16)}.${Math.floor(i / boardSize).toString(36)}.${(i % boardSize).toString(36)}`, "2",
                         "DVNMLPXKBBOIFHLVUNCFOPIIT9GJKADRRJYSDGHDIHCBGDEWYIPPUVQBDQRREGGYSPZ9VXPRXIXIA9999",
                         "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
@@ -127,7 +142,7 @@ MongoClient.connect(mongoDbUrl)
                         "DVNMLPXKBBOIFHLVUNCFOPIIT9GJKADRRJYSDGHDIHCBGDEWYIPPUVQBDQRREGGYSPZ9VXPRXIXIA9999",
                         "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
                         Math.floor(Math.random() * 100000));
-                }, 200);
+                }, 1000);
                 console.log("Loaded sample pixels");
             });
         });
