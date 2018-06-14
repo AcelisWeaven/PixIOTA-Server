@@ -1,8 +1,7 @@
 require('dotenv').config();
 const env = process.env.NODE_ENV;
 const pixiotaApiPort = process.env.PIXIOTA_API_PORT;
-const iotaProviderHost = process.env.PIXIOTA_PROVIDER_HOST;
-const iotaProviderPort = process.env.PIXIOTA_PROVIDER_PORT;
+const iotaProvider = process.env.IOTA_PROVIDER;
 const mongoDbUrl = process.env.MONGODB_URL;
 const mongoDbName = process.env.MONGODB_NAME;
 const zmqUrl = process.env.ZMQ_URL;
@@ -27,8 +26,7 @@ const wss = new WebSocket.Server({server: expressServer});
 let client = null;
 let db = null;
 let iota = new IOTA({
-    host: iotaProviderHost,
-    port: iotaProviderPort,
+    provider: iotaProvider,
 });
 
 redisClient.on("error", function (err) {
