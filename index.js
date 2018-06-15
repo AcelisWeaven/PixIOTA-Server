@@ -4,7 +4,7 @@ const pixiotaApiPort = process.env.PIXIOTA_API_PORT;
 const iotaProvider = process.env.IOTA_PROVIDER;
 const mongoDbUrl = process.env.MONGODB_URL;
 const mongoDbName = process.env.MONGODB_NAME;
-const zmqUrl = process.env.ZMQ_URL;
+const zmqUrls = process.env.ZMQ_URLS;
 
 const command = process.argv.slice(2)[0];
 const developers = require("./developers.json");
@@ -16,6 +16,8 @@ const express = require('express');
 const expressApp = express();
 const expressCompression = require('compression');
 const expressCacheResponseDirective = require('express-cache-response-directive');
+const zmqXSubscriber = zmq.socket('xsub');
+const zmqXPublisher = zmq.socket('xpub');
 const zmqSubscriber = zmq.socket('sub');
 const redis = require("redis");
 const redisClient = redis.createClient({detect_buffers: true});
@@ -179,20 +181,47 @@ MongoClient.connect(mongoDbUrl)
         client = _client;
         db = client.db(mongoDbName);
 
-        zmqSubscriber.connect(zmqUrl).subscribe('sn ');
+        const urls = zmqUrls.split(";");
+        console.log(urls);
+        zmqXPublisher.bindSync('tcp://*:5555');
+        urls.forEach(url => {
+            console.log(url);
+            zmqXSubscriber.connect(url);
+        });
+        zmqSubscriber.connect('tcp://127.0.0.1:5555').subscribe('sn ');
     })
 ;
 
+zmqXPublisher.on('message', function (msg) {
+    zmqXSubscriber.send(msg);
+});
+
+function isDeveloper(addr) {
+    for (let i in developers) {
+        if (developers[i].address.startsWith(addr))
+            return true;
+    }
+    return false;
+}
+
+let msgProxy = [];
+zmqXSubscriber.on('message', function (msg) {
+    const smsg = msg.toString();
+    const [, , to] = smsg.split(' ').slice(1);
+
+    // if message has been handled recently, ignore it
+    if (msgProxy.indexOf(smsg) > -1) return;
+
+    msgProxy.unshift(smsg);
+    if (msgProxy.length > 4000)
+        msgProxy.splice(-1, 1);
+    if (!isDeveloper(to)) return;
+    zmqXPublisher.send(msg); // Forward message using the xpub so subscribers can receive it
+});
+
 zmqSubscriber.on('message', function (msg) {
-    let [milestone, id, to] = msg.toString().split(' ').slice(1);
-    const matchDevelopers = (addr => {
-        for (let i in developers) {
-            if (developers[i].address.startsWith(addr))
-                return true;
-        }
-        return false;
-    })(to);
-    if (!matchDevelopers) return;
+    const [milestone, id, to] = msg.toString().split(' ').slice(1);
+    if (!isDeveloper(to)) return;
 
     console.log("milestone", milestone, "id", id, "to", to);
 
