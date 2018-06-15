@@ -182,10 +182,9 @@ MongoClient.connect(mongoDbUrl)
         db = client.db(mongoDbName);
 
         const urls = zmqUrls.split(";");
-        console.log(urls);
         zmqXPublisher.bindSync('tcp://*:5555');
         urls.forEach(url => {
-            console.log(url);
+            console.log(`XSUB connecting to: ${url}`);
             zmqXSubscriber.connect(url);
         });
         zmqSubscriber.connect('tcp://127.0.0.1:5555').subscribe('sn ');
