@@ -209,12 +209,11 @@ zmqXSubscriber.on('message', function (msg) {
     const [, , to] = smsg.split(' ').slice(1);
 
     // if message has been handled recently, ignore it
-    if (msgProxy.indexOf(smsg) > -1) return;
+    if (!isDeveloper(to) || msgProxy.indexOf(smsg) > -1) return;
 
     msgProxy.unshift(smsg);
     if (msgProxy.length > 4000)
         msgProxy.splice(-1, 1);
-    if (!isDeveloper(to)) return;
     zmqXPublisher.send(msg); // Forward message using the xpub so subscribers can receive it
 });
 
