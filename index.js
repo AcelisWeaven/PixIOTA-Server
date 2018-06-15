@@ -6,6 +6,8 @@ const mongoDbUrl = process.env.MONGODB_URL;
 const mongoDbName = process.env.MONGODB_NAME;
 const zmqUrl = process.env.ZMQ_URL;
 
+const command = process.argv.slice(2)[0];
+const developers = require("./developers.json");
 const MongoClient = require('mongodb').MongoClient;
 const WebSocket = require('ws');
 const IOTA = require('iota.lib.js');
@@ -120,32 +122,21 @@ wss.on('connection', ws => {
         });
 });
 
-// debug
 MongoClient.connect(mongoDbUrl)
     .then(_client => {
         client = _client;
         db = client.db(mongoDbName);
 
-        db.collection('transactions').remove({}, function (err, numberRemoved) {
-            console.log(`DEBUG: Removed ${numberRemoved.result.n} transactions from database`);
-            redisClient.set(["map", ""], (err, reply) => {
-                console.log("DEBUG: Reset redis map --> OK");
-
-                // for (let i = 0; i < boardSize * 20; i++) {
-                //     pixiotaDispatchPixel(`pixiota ${Math.floor(Math.random() * 16)}.${Math.floor(i / boardSize).toString(36)}.${(i % boardSize).toString(36)}`, "2",
-                //         "DVNMLPXKBBOIFHLVUNCFOPIIT9GJKADRRJYSDGHDIHCBGDEWYIPPUVQBDQRREGGYSPZ9VXPRXIXIA9999",
-                //         "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
-                //         Math.floor(Math.random() * 100000));
-                // }
-                // setInterval(() => {
-                //     pixiotaDispatchPixel(`pixiota ${Math.floor(Math.random() * 16)}.${Math.floor(Math.random() * boardSize).toString(36)}.${Math.floor(Math.random() * boardSize).toString(36)}`, "2",
-                //         "DVNMLPXKBBOIFHLVUNCFOPIIT9GJKADRRJYSDGHDIHCBGDEWYIPPUVQBDQRREGGYSPZ9VXPRXIXIA9999",
-                //         "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
-                //         Math.floor(Math.random() * 100000));
-                // }, 1000);
-                // console.log("Loaded sample pixels");
+        if (command === "clear") {
+            db.collection('transactions').remove({}, function (err, numberRemoved) {
+                console.log(`Removed ${numberRemoved.result.n} transactions from database`);
+                redisClient.set(["map", ""], (err, reply) => {
+                    console.log("Reset redis map --> OK");
+                    console.log("Clear successful. Exiting.");
+                    process.exit();
+                });
             });
-        });
+        }
     })
 ;
 
@@ -160,9 +151,20 @@ expressApp.get('/map', (req, res) => {
         res.end(map, 'binary');
     });
 });
+expressApp.get('/projects', (req, res) => {
+    if (env === "dev")
+        res.setHeader('Access-Control-Allow-Origin', '*');
+    res.cacheControl({maxAge: 1800, staleWhileRevalidate: 60}); // 1800-second cache
+    res.json(developers.map(dev => {
+        return {
+            address: dev.address,
+            project: dev.project,
+        };
+    }));
+});
 expressApp.get('/', (req, res) => {
     res.cacheControl({maxAge: 3600, staleWhileRevalidate: 3600});
-    res.send("Hmm... May I help you?")
+    res.send("Hmm... May I help you? ;)")
 });
 
 // Use connect method to connect to the server
@@ -182,9 +184,15 @@ MongoClient.connect(mongoDbUrl)
 
 zmqSubscriber.on('message', function (msg) {
     let [milestone, id, to] = msg.toString().split(' ').slice(1);
+    const matchDevelopers = (addr => {
+        for (let i in developers) {
+            if (developers[i].address.startsWith(addr))
+                return true;
+        }
+        return false;
+    })(to);
+    if (!matchDevelopers) return;
 
-    if (to !== "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
-        return;
     console.log("milestone", milestone, "id", id, "to", to);
 
     iota.api.getTransactionsObjects([id],
