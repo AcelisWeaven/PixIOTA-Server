@@ -148,6 +148,7 @@ expressApp.get('/map', (req, res) => {
         if (env === "dev")
             res.setHeader('Access-Control-Allow-Origin', '*');
         res.cacheControl({maxAge: 1, staleWhileRevalidate: 1}); // 1-second cache only
+        res.header("Content-Type", "application/octet-stream");
         res.end(map, 'binary');
     });
 });
