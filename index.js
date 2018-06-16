@@ -33,7 +33,7 @@ let iota = new IOTA({
     provider: iotaProvider,
 });
 
-redisClient.on("error", function (err) {
+redisClient.on("error", err => {
     console.log("REDIS Error " + err);
 });
 
@@ -56,7 +56,7 @@ function pixiotaDispatchPixel(message, value, id, to, milestone) {
         return {
             type: 'transaction',
             a: parseInt(value),
-            c: parseInt(pixelArray[0]),
+            c: parseInt(pixelArray[0], 16),
             x: parseInt(pixelArray[1], 36),
             y: parseInt(pixelArray[2], 36),
             f: id,
@@ -83,8 +83,8 @@ function pixiotaDispatchPixel(message, value, id, to, milestone) {
 }
 
 // ws heartbeat
-setInterval(function ping() {
-    wss.clients.forEach(function each(ws) {
+setInterval(() => {
+    wss.clients.forEach(ws => {
         if (ws.isAlive === false) return ws.terminate();
 
         ws.isAlive = false;
@@ -130,7 +130,7 @@ MongoClient.connect(mongoDbUrl)
         db = client.db(mongoDbName);
 
         if (command === "clear") {
-            db.collection('transactions').remove({}, function (err, numberRemoved) {
+            db.collection('transactions').remove({}, (err, numberRemoved) => {
                 console.log(`Removed ${numberRemoved.result.n} transactions from database`);
                 redisClient.set(["map", ""], (err, reply) => {
                     console.log("Reset redis map --> OK");
@@ -191,7 +191,7 @@ MongoClient.connect(mongoDbUrl)
     })
 ;
 
-zmqXPublisher.on('message', function (msg) {
+zmqXPublisher.on('message', msg => {
     zmqXSubscriber.send(msg);
 });
 
@@ -204,7 +204,7 @@ function isDeveloper(addr) {
 }
 
 let msgProxy = [];
-zmqXSubscriber.on('message', function (msg) {
+zmqXSubscriber.on('message', msg => {
     const smsg = msg.toString();
     const [, , to] = smsg.split(' ').slice(1);
 
@@ -217,7 +217,7 @@ zmqXSubscriber.on('message', function (msg) {
     zmqXPublisher.send(msg); // Forward message using the xpub so subscribers can receive it
 });
 
-zmqSubscriber.on('message', function (msg) {
+zmqSubscriber.on('message', msg => {
     const [milestone, id, to] = msg.toString().split(' ').slice(1);
     if (!isDeveloper(to)) return;
 
@@ -249,6 +249,6 @@ zmqSubscriber.on('message', function (msg) {
             pixiotaDispatchPixel(message, value, id, to, milestone);
         });
 });
-zmqSubscriber.on('close', function () {
+zmqSubscriber.on('close', () => {
     console.log("ZMQ connection lost :(")
 });
