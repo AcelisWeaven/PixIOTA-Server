@@ -236,6 +236,7 @@ expressApp.get('/projects', (req, res) => {
         return {
             address: dev.address,
             project: dev.project,
+            link: dev.link,
         };
     }));
 });
