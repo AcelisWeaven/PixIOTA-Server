@@ -4,6 +4,7 @@ const pixiotaApiPort = process.env.PIXIOTA_API_PORT;
 const iotaProvider = process.env.IOTA_PROVIDER;
 const mongoDbUrl = process.env.MONGODB_URL;
 const mongoDbName = process.env.MONGODB_NAME;
+const redisFieldName = process.env.REDIS_FIELD_NAME;
 const zmqUrls = process.env.ZMQ_URLS;
 
 const command = process.argv.slice(2)[0];
@@ -90,7 +91,7 @@ function pixiotaDispatchPixel(message, value, id, to, milestone, attachmentTimes
         color: pixelData.c,
         attachmentTimestamp: parseInt(attachmentTimestamp),
     });
-    redisClient.bitfield(["map", "SET", "u4", `#${pixelData.y * boardSize + pixelData.x}`, pixelData.c]);
+    redisClient.bitfield([redisFieldName, "SET", "u4", `#${pixelData.y * boardSize + pixelData.x}`, pixelData.c]);
     wss.broadcast(JSON.stringify(pixelData))
 }
 
@@ -144,7 +145,7 @@ MongoClient.connect(mongoDbUrl)
         if (command === "clear") {
             db.collection('transactions').remove({}, (err, numberRemoved) => {
                 console.log(`Removed ${numberRemoved.result.n} transactions from database`);
-                redisClient.set(["map", ""], (err, reply) => {
+                redisClient.set([redisFieldName, ""], (err, reply) => {
                     console.log("Reset redis map --> OK");
                     console.log("Clear successful. Exiting.");
                     process.exit();
@@ -200,7 +201,7 @@ MongoClient.connect(mongoDbUrl)
                                     });
                                 }
                             });
-                        redisClient.bitfield(["map", "SET", "u4", `#${pixelData.y * boardSize + pixelData.x}`, pixelData.c]);
+                        redisClient.bitfield([redisFieldName, "SET", "u4", `#${pixelData.y * boardSize + pixelData.x}`, pixelData.c]);
                     });
                     setInterval(() => {
                         if (runningQueries <= 0) {
