@@ -221,7 +221,7 @@ MongoClient.connect(mongoDbUrl)
 expressApp.use(expressCompression({filter: (req, res) => true}));
 expressApp.use(expressCacheResponseDirective());
 expressApp.get('/map', (req, res) => {
-    redisClient.get(new Buffer("map"), (err, map) => {
+    redisClient.get(new Buffer(redisFieldName), (err, map) => {
         if (env === "dev")
             res.setHeader('Access-Control-Allow-Origin', '*');
         res.cacheControl({maxAge: 1, staleWhileRevalidate: 1}); // 1-second cache only
