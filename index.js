@@ -69,6 +69,9 @@ function pixiotaDispatchPixel(message, value, id, to, milestone) {
         pixelData.c < 0 || pixelData.c >= 16)
         return;
 
+    console.log(JSON.stringify(message.split(' ')[1].split('.')));
+    console.log(JSON.stringify(pixelData));
+
     db.collection('transactions').insertOne({
         milestone: milestone,
         id: id,
