@@ -46,9 +46,13 @@ wss.broadcast = data => {
     });
 };
 
+function trytesToMessage(trytes) {
+    return iota.utils.fromTrytes(
+        trytes.replace(/9+$/, "")
+    ).replace(/[^a-zA-Z0-9\s\\.]+/g, "")
+}
 
-function pixiotaDispatchPixel(message, value, id, to, milestone) {
-    if (!message.startsWith("pixiota ")) return;
+function messageToPixel(message, value = "0", id = "", to = "") {
     const pixelData = ((args) => {
         if (args.length < 2) return null;
 
@@ -67,10 +71,14 @@ function pixiotaDispatchPixel(message, value, id, to, milestone) {
         pixelData.x < 0 || pixelData.x >= boardSize ||
         pixelData.y < 0 || pixelData.y >= boardSize ||
         pixelData.c < 0 || pixelData.c >= 16)
-        return;
+        return null;
+    return pixelData;
+}
 
-    console.log(JSON.stringify(message.split(' ')[1].split('.')));
-    console.log(JSON.stringify(pixelData));
+function pixiotaDispatchPixel(message, value, id, to, milestone, attachmentTimestamp) {
+    if (!message.startsWith("pixiota ")) return;
+    const pixelData = messageToPixel(message, value, id, to);
+    if (!pixelData) return;
 
     db.collection('transactions').insertOne({
         milestone: milestone,
@@ -80,6 +88,7 @@ function pixiotaDispatchPixel(message, value, id, to, milestone) {
         x: pixelData.x,
         y: pixelData.y,
         color: pixelData.c,
+        attachmentTimestamp: parseInt(attachmentTimestamp),
     });
     redisClient.bitfield(["map", "SET", "u4", `#${pixelData.y * boardSize + pixelData.x}`, pixelData.c]);
     wss.broadcast(JSON.stringify(pixelData))
@@ -104,7 +113,7 @@ wss.on('connection', ws => {
     if (!db) return;
 
     // send last 10 transactions
-    db.collection('transactions').find({}).limit(10).sort({milestone: -1}).toArray()
+    db.collection('transactions').find({}).limit(10).sort({attachmentTimestamp: -1}).toArray()
         .catch(err => {
             console.log(err);
             console.log("ERROR");
@@ -141,6 +150,68 @@ MongoClient.connect(mongoDbUrl)
                     process.exit();
                 });
             });
+        }
+
+        if (command === "recover") {
+            iota.api.findTransactionObjects({
+                addresses: developers.map(dev => dev.address)
+            }, (err, transactions) => {
+                iota.api.getLatestInclusion(transactions.map(t => t.hash), (err, inclusions) => {
+                    const confirmedTransactions = transactions
+                        .filter((tr, i) => inclusions[i])
+                        .filter(tr => tr.value > 0)
+                        .sort((a, b) => a.attachmentTimestamp - b.attachmentTimestamp)
+                    ;
+
+                    let runningQueries = 0;
+                    confirmedTransactions.forEach(transaction => {
+                        const message = trytesToMessage(transaction.signatureMessageFragment);
+                        const pixelData = messageToPixel(message);
+                        if (!pixelData) return;
+                        runningQueries++;
+                        db.collection('transactions').updateOne(
+                            {id: transaction.hash},
+                            {
+                                "$set": {
+                                    id: transaction.hash,
+                                    to: transaction.address,
+                                    value: transaction.value,
+                                    x: pixelData.x,
+                                    y: pixelData.y,
+                                    color: pixelData.c,
+                                    attachmentTimestamp: parseInt(transaction.attachmentTimestamp),
+                                }
+                            },
+                            (err, res) => {
+                                if (res.result.n > 0) {
+                                    runningQueries--;
+                                } else {
+                                    db.collection('transactions').insertOne({
+                                        milestone: null,
+                                        id: transaction.hash,
+                                        to: transaction.address,
+                                        value: transaction.value,
+                                        x: pixelData.x,
+                                        y: pixelData.y,
+                                        color: pixelData.c,
+                                        attachmentTimestamp: parseInt(transaction.attachmentTimestamp),
+                                    }, (err, res) => {
+                                        runningQueries--;
+                                    });
+                                }
+                            });
+                        redisClient.bitfield(["map", "SET", "u4", `#${pixelData.y * boardSize + pixelData.x}`, pixelData.c]);
+                    });
+                    setInterval(() => {
+                        if (runningQueries <= 0) {
+                            // Wait for every mongodb update to finish
+                            console.log("Recovering data --> OK");
+                            console.log("Recover successful. Exiting.");
+                            process.exit();
+                        }
+                    }, 200);
+                })
+            })
         }
     })
 ;
@@ -235,9 +306,7 @@ zmqSubscriber.on('message', msg => {
                 return;
             }
             let transaction = results[0];
-            let message = iota.utils.fromTrytes(
-                transaction.signatureMessageFragment.replace(/9+$/, "")
-            ).replace(/[^a-zA-Z0-9\s\\.]+/g, "");
+            const message = trytesToMessage(transaction.signatureMessageFragment);
             console.log(message);
             let value = transaction.value;
             if (value === 0) {
@@ -249,7 +318,7 @@ zmqSubscriber.on('message', msg => {
                 return;
             }
 
-            pixiotaDispatchPixel(message, value, id, to, milestone);
+            pixiotaDispatchPixel(message, value, id, to, milestone, transaction.attachmentTimestamp);
         });
 });
 zmqSubscriber.on('close', () => {
