@@ -6,6 +6,7 @@ const mongoDbUrl = process.env.MONGODB_URL;
 const mongoDbName = process.env.MONGODB_NAME;
 const redisFieldName = process.env.REDIS_FIELD_NAME;
 const zmqUrls = process.env.ZMQ_URLS;
+const zmqLocalBindPort = process.env.ZMQ_LOCAL_BIND_PORT;
 
 const command = process.argv.slice(2)[0];
 const developers = require("./developers.json");
@@ -258,12 +259,12 @@ MongoClient.connect(mongoDbUrl)
         db = client.db(mongoDbName);
 
         const urls = zmqUrls.split(";");
-        zmqXPublisher.bindSync('tcp://*:5555');
+        zmqXPublisher.bindSync(`tcp://*:${zmqLocalBindPort}`);
         urls.forEach(url => {
             console.log(`XSUB connecting to: ${url}`);
             zmqXSubscriber.connect(url);
         });
-        zmqSubscriber.connect('tcp://127.0.0.1:5555').subscribe('sn ');
+        zmqSubscriber.connect(`tcp://127.0.0.1:${zmqLocalBindPort}`).subscribe('sn ');
     })
 ;
 
