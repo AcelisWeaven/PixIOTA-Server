@@ -1,7 +1,7 @@
 require('dotenv').config();
 const env = process.env.NODE_ENV;
 const pixiotaApiPort = process.env.PIXIOTA_API_PORT;
-const iotaProvider = process.env.IOTA_PROVIDER;
+const iotaProviders = process.env.IOTA_PROVIDERS;
 const mongoDbUrl = process.env.MONGODB_URL;
 const mongoDbName = process.env.MONGODB_NAME;
 const redisFieldName = process.env.REDIS_FIELD_NAME;
@@ -31,9 +31,16 @@ const wss = new WebSocket.Server({server: expressServer});
 
 let client = null;
 let db = null;
-let iota = new IOTA({
-    provider: iotaProvider,
-});
+let iotaServices = [];
+let iota = null;
+for (i in iotaProviders.split(";")) {
+    let iotaProvider = iotaProviders.split(";")[i];
+    iota = new IOTA({
+        provider: iotaProvider,
+    });
+    iotaServices.push(iota);
+    console.log(`Registered iota provider: ${iotaProvider}`);
+}
 
 redisClient.on("error", err => {
     console.log("REDIS Error " + err);
@@ -138,6 +145,17 @@ wss.on('connection', ws => {
         });
 });
 
+function iotaWrapper(method, params, callback, _services) {
+    if (_services === undefined)
+        _services = iotaServices.slice(0);
+    _services[0].api[method](params, (err, data) => {
+        if (err && _services.length > 0) {
+            return iotaWrapper(method, params, callback, _services.slice(1));
+        }
+        return callback(err, data);
+    })
+};
+
 MongoClient.connect(mongoDbUrl)
     .then(_client => {
         client = _client;
@@ -155,10 +173,10 @@ MongoClient.connect(mongoDbUrl)
         }
 
         if (command === "recover") {
-            iota.api.findTransactionObjects({
+            iotaWrapper("findTransactionObjects", {
                 addresses: developers.map(dev => dev.address)
             }, (err, transactions) => {
-                iota.api.getLatestInclusion(transactions.map(t => t.hash), (err, inclusions) => {
+                iotaWrapper("getLatestInclusion", transactions.map(t => t.hash), (err, inclusions) => {
                     const confirmedTransactions = transactions
                         .filter((tr, i) => inclusions[i])
                         .filter(tr => tr.value > 0)
