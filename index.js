@@ -318,7 +318,7 @@ zmqSubscriber.on('message', msg => {
 
     console.log("milestone", milestone, "id", id, "to", to);
 
-    iota.api.getTransactionsObjects([id],
+    iotaWrapper("getTransactionsObjects", [id],
         (err, results) => {
             if (err)
                 console.log(err);
