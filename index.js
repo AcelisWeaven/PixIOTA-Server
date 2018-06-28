@@ -173,8 +173,11 @@ MongoClient.connect(mongoDbUrl)
         }
 
         if (command === "recover") {
+            let donationAddresses = [].concat.apply([], developers.map(dev => {
+                return [dev.address].concat(dev.spentAddresses || []);
+            }));
             iotaWrapper("findTransactionObjects", {
-                addresses: developers.map(dev => dev.address)
+                addresses: donationAddresses,
             }, (err, transactions) => {
                 iotaWrapper("getLatestInclusion", transactions.map(t => t.hash), (err, inclusions) => {
                     const confirmedTransactions = transactions

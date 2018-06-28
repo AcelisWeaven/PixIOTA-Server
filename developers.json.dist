@@ -9,6 +9,8 @@
     },
     {
         "address": "KSPHGLUOQFCMEPQTHQ9HZPFXBPE9ZERXFEXBLIQFQSKNJPFFCMOHGTYWZ9NYMEEGSKZK9P9CQIRHAJESA9HXZFIEH9",
-        "project": "PixIOTA Fund 3"
+        "spentAddresses": ["SAMPLEADDRESS"],
+        "project": "PixIOTA Fund 3",
+        "link": "https://ecosystem.iota.org/projects/random-project"
     }
 ]
