@@ -130,13 +130,16 @@ function recoverMissingPixels() {
                         missingTransactions.forEach(transaction => {
                             pixiotaDispatchPixel(transaction.pixelMessage, transaction.value, transaction.hash, transaction.address, null, transaction.attachmentTimestamp);
                         });
-                        console.log(`Recovered ${missingTransactions.length} missing transactions via polling.`);
+
+                        if (missingTransactions.length > 0)
+                            console.log(`Recovered ${missingTransactions.length} missing transactions via polling.`);
                     }
                     setTimeout(recoverMissingPixels, 20000);
                 });
         });
     });
 }
+
 setTimeout(recoverMissingPixels, 1000);
 
 function pixiotaDispatchPixel(message, value, id, to, milestone, attachmentTimestamp) {
