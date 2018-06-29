@@ -203,8 +203,12 @@ wss.on('connection', ws => {
 function iotaWrapper(method, params, callback, _services) {
     if (_services === undefined)
         _services = iotaServices.slice(0);
+    if (_services.length === 0) {
+        console.log(`iotaWrapper: "${method} failed with every services."`);
+        return null;
+    }
     _services[0].api[method](params, (err, data) => {
-        if (err && _services.length > 0) {
+        if (err) {
             return iotaWrapper(method, params, callback, _services.slice(1));
         }
         return callback(err, data);
