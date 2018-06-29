@@ -56,12 +56,15 @@ wss.broadcast = data => {
 };
 
 function trytesToMessage(trytes) {
-    return iota.utils.fromTrytes(
+    const message = iota.utils.fromTrytes(
         trytes.replace(/9+$/, "")
-    ).replace(/[^a-zA-Z0-9\s\\.]+/g, "")
+    );
+    if (!message) return null;
+    return message.replace(/[^a-zA-Z0-9\s\\.]+/g, "")
 }
 
 function messageToPixel(message, value = "0", id = "", to = "") {
+    if (!message) return null;
     const pixelData = ((args) => {
         if (args.length < 2) return null;
 
@@ -83,6 +86,58 @@ function messageToPixel(message, value = "0", id = "", to = "") {
         return null;
     return pixelData;
 }
+
+function recoverMissingPixels() {
+    let donationAddresses = [].concat.apply([], developers.map(dev => {
+        return [dev.address].concat(dev.spentAddresses || []);
+    }));
+
+    iotaWrapper("findTransactionObjects", {
+        addresses: donationAddresses,
+    }, (err, transactions) => {
+        iotaWrapper("getLatestInclusion", transactions.map(t => t.hash), (err, inclusions) => {
+            transactions.forEach(transaction => {
+                const message = trytesToMessage(transaction.signatureMessageFragment);
+                transaction.pixelMessage = message;
+                transaction.pixelData = messageToPixel(message);
+            });
+            const confirmedTransactions = transactions
+                .filter((tr, i) => inclusions[i])
+                .filter(tr => tr.value > 0)
+                .filter(tr => tr.pixelData !== null)
+            ;
+
+            db.collection('transactions').find({id: {$in: confirmedTransactions.map(t => t.hash)}}).toArray()
+                .catch(err => {
+                    console.log(err);
+                    console.log("ERROR");
+                })
+                .then(results => {
+                    if (results.length !== confirmedTransactions.length) {
+                        let missingTransactions = [];
+
+                        confirmedTransactions.forEach(transaction => {
+                            let found = false;
+                            for (const result of results) {
+                                if (result.id === transaction.hash) {
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            if (!found) missingTransactions.push(transaction);
+                        });
+
+                        missingTransactions.forEach(transaction => {
+                            pixiotaDispatchPixel(transaction.pixelMessage, transaction.value, transaction.hash, transaction.address, null, transaction.attachmentTimestamp);
+                        });
+                        console.log(`Recovered ${missingTransactions.length} missing transactions via polling.`);
+                    }
+                    setTimeout(recoverMissingPixels, 20000);
+                });
+        });
+    });
+}
+setTimeout(recoverMissingPixels, 1000);
 
 function pixiotaDispatchPixel(message, value, id, to, milestone, attachmentTimestamp) {
     if (!message.startsWith("pixiota ")) return;
