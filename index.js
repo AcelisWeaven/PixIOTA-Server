@@ -105,6 +105,7 @@ function recoverMissingPixels() {
                 .filter((tr, i) => inclusions[i])
                 .filter(tr => tr.value > 0)
                 .filter(tr => tr.pixelData !== null)
+                .sort((a, b) => a.attachmentTimestamp - b.attachmentTimestamp)
             ;
 
             db.collection('transactions').find({id: {$in: confirmedTransactions.map(t => t.hash)}}).toArray()
