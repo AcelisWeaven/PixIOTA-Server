@@ -209,7 +209,7 @@ function iotaWrapper(method, params, callback, _services) {
         _services = iotaServices.slice(0);
     if (_services.length === 0) {
         console.log(`iotaWrapper: "${method} failed with every services."`);
-        return null;
+        return callback(null, []); // dummy callback
     }
     _services[0].api[method](params, (err, data) => {
         if (err) {
